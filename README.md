@@ -19,8 +19,8 @@ A Next.js application that provides tax assistance through a chat interface. Thi
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/yourusername/tax-assistant.git
-   cd tax-assistant
+   git clone https://github.com/rifatrzn/taxapp-project.git
+   cd taxapp-project
    ```
 
 2. Install dependencies
