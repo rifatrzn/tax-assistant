@@ -4,14 +4,39 @@ import { createClient } from "@supabase/supabase-js"
 import type { NextRequest } from "next/server"
 
 // Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+
+// Only create client if both URL and key are available
+const supabase = supabaseUrl && supabaseKey 
+  ? createClient(supabaseUrl, supabaseKey)
+  : null
 
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json()
     const lastMessage = messages[messages.length - 1].content
+
+    // Check if Supabase is configured
+    if (!supabase) {
+      console.error("Supabase client not initialized. Missing environment variables.")
+      
+      // Fallback to direct response without context
+      const result = streamText({
+        model: deepseek("deepseek-reasoner"),
+        messages: [
+          { 
+            role: "system", 
+            content: "You are a tax expert assistant that specializes in SEC EDGAR filings and tax regulations." 
+          }, 
+          ...messages
+        ],
+      })
+
+      return result.toDataStreamResponse({
+        sendReasoning: true,
+      })
+    }
 
     // Perform vector search in Supabase
     const { data: documents, error } = await performVectorSearch(lastMessage)
@@ -57,11 +82,16 @@ Use <Thinking> tags to show your reasoning process before providing the final an
 
 async function performVectorSearch(query: string) {
   try {
-    // Generate embedding for the query
-    const embeddingResponse = await fetch("/api/embeddings", {
+    if (!supabase) {
+      throw new Error("Supabase client not initialized")
+    }
+    
+    // Generate embedding for the query using absolute URL
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+    const embeddingResponse = await fetch(`${baseUrl}/api/embeddings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: query }),
+      body: JSON.stringify({ text: query })
     })
 
     if (!embeddingResponse.ok) {
@@ -81,4 +111,3 @@ async function performVectorSearch(query: string) {
     return { data: null, error }
   }
 }
-
